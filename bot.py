@@ -229,8 +229,8 @@ async def download_media(
                 f"Skipped duplicates: `{stats['skipped_duplicate']:,}` | Already on disk: `{stats['skipped_exists']:,}`\n"
                 f"Failed: `{stats['failed']:,}`"
             ))
-        except Exception:
-            pass
+        except discord.HTTPException as e:
+            log.warning(f"Status update failed: {e}")
 
     semaphore = asyncio.Semaphore(DOWNLOAD_CONCURRENCY)
     connector = aiohttp.TCPConnector(limit=DOWNLOAD_CONCURRENCY + 5, ttl_dns_cache=300)
@@ -260,7 +260,7 @@ async def download_media(
         log.info(f"Failed URLs written to {failed_log_path}")
 
     summary = (
-        f"**Done! Media for {user.mention}**\n\n"
+        f"**Done! Media for {user.display_name}**\n\n"
         f"Saved to: `{output_dir}`\n"
         f"Messages scanned: `{stats['messages_scanned']:,}`\n"
         f"Images downloaded: `{stats['images']:,}`\n"
@@ -270,8 +270,21 @@ async def download_media(
         f"Failed: `{stats['failed']:,}`"
         + (f"\nFailed URLs saved to `failed_downloads.txt`" if failed_log else "")
     )
-    await status_msg.edit(content=summary)
     log.info(f"Complete: {stats}")
+
+    # Try editing the existing status message first.
+    # If the interaction token has expired (scans >15 min), fall back to a new message.
+    try:
+        await status_msg.edit(content=summary)
+    except discord.NotFound:
+        log.warning("Status message not found, sending new message.")
+        await interaction.channel.send(summary)
+    except discord.HTTPException as e:
+        log.warning(f"Could not edit status message ({e}), sending new message.")
+        try:
+            await interaction.channel.send(summary)
+        except Exception as e2:
+            log.error(f"Failed to send summary: {e2}")
 
 
 @download_media.error
