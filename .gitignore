@@ -1,0 +1,20 @@
+# Environment
+.env
+
+# Virtual environment
+VENV/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyw
+
+# Downloads output
+downloads/
+
+# Logs
+*.log
+
+.python-version
